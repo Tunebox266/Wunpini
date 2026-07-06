@@ -2,7 +2,7 @@
 (async function(){
   // Find configuration
   const SUPABASE_URL = window.SUPABASE_URL || 'https://xvthbnokdyhttmmrhoos.supabase.co';
-  const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2dGhibm9rZHlodHRtbXJob29zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzNDgxMjAsImV4cCI6MjA5ODkyNDEyMH0.yc3FPaZgb3VzRT0bT-SCd18RRYC9UMX62DEvLTdjimI';
+  const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || 'sb_publishable_vmZGIikzAppmmd7NN-2-bA_xhX7qLxC';
 
   if(!SUPABASE_URL || !SUPABASE_ANON_KEY){
     const menuRoot = document.getElementById('menu-list');
@@ -11,7 +11,7 @@
   }
 
   // Use the UMD global `supabase` provided by the <script> in the page
-  const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const supabase = (typeof supabase !== 'undefined' && supabase.createClient) ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
   // Elements
   const menuRoot = document.getElementById('menu-list');
@@ -110,47 +110,80 @@
 
   function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])) }
 
-  // Fetch menu items from Supabase with robust error handling and fallback
+  // Helper: direct REST fetch using anon key (fallback)
+  async function restFetchMenu(){
+    const simpleUrl = `${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/menu_items?select=id,name,description,price,available&available=eq.true`;
+    try{
+      const res = await fetch(simpleUrl, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } });
+      const text = await res.text();
+      let json = null;
+      try{ json = JSON.parse(text); }catch(e){ json = null; }
+      return { status: res.status, ok: res.ok, data: json, text };
+    }catch(e){ return { status: 0, ok:false, error: e.message || String(e) }; }
+  }
+
+  // Render an actionable RLS help message with copy button
+  function showRlsHelp(details){
+    const sql = `-- Enable row level security and allow anon select of available menu items\nALTER TABLE public.menu_items ENABLE ROW LEVEL SECURITY;\n\nCREATE POLICY public_select_menu_items\n  ON public.menu_items\n  FOR SELECT\n  USING (available IS TRUE);`;
+    menuRoot.innerHTML = `
+      <div class="text-sm opacity-80 mb-3">Unable to load menu from the backend. Reason: <strong>${escapeHtml(details)}</strong></div>
+      <div class="text-sm mb-2">If you enabled Row-Level Security in Supabase, paste and run the SQL below in the Supabase SQL editor, then reload this page.</div>
+      <pre id="wun-sql" class="p-3 text-xs bg-black/30 rounded" style="white-space:pre-wrap;max-height:240px;overflow:auto">${escapeHtml(sql)}</pre>
+      <div class="flex gap-2 mt-3">
+        <button id="copy-sql" class="px-3 py-2 bg-yellow-400 text-black rounded">Copy SQL</button>
+        <button id="open-sql" class="px-3 py-2 bg-gray-700 text-white rounded">Open Supabase SQL (new tab)</button>
+      </div>
+    `;
+    document.getElementById('copy-sql').addEventListener('click', ()=>{
+      navigator.clipboard.writeText(sql).then(()=>{
+        alert('SQL copied to clipboard — paste into Supabase SQL editor.');
+      }).catch(()=>{ alert('Copy failed — select and copy the SQL manually.'); });
+    });
+    document.getElementById('open-sql').addEventListener('click', ()=>{
+      const editorUrl = SUPABASE_URL.replace('https://','https://app.supabase.com/project/') + '/sql';
+      window.open(editorUrl, '_blank');
+    });
+  }
+
+  // Fetch menu items from Supabase with robust error handling and fallback to REST
   async function loadMenu(){
     menuRoot.innerHTML = '<p class="opacity-70">Loading menu…</p>';
-    try{
-      // First attempt: include category relationship if it exists
-      const attempt1 = await supabase.from('menu_items').select('id,name,description,price,available,category_id(id,slug,title)').eq('available', true).order('id', {ascending:true});
-      console.log('menu attempt1', attempt1);
-      if(attempt1.error) throw attempt1.error;
-      if(attempt1.data && attempt1.data.length){
-        menuItems = attempt1.data;
-        renderMenu(menuItems);
-        if(statusEl) statusEl.textContent = 'Menu loaded';
-        return;
-      }
 
-      // If empty array returned, still render (maybe no items)
-      if(Array.isArray(attempt1.data) && attempt1.data.length === 0){
-        menuItems = [];
-        renderMenu(menuItems);
-        if(statusEl) statusEl.textContent = 'No menu items';
-        return;
+    // First, try the Supabase client if available
+    if(supabase){
+      try{
+        const { data, error } = await supabase.from('menu_items').select('id,name,description,price,available,category_id(id,slug,title)').eq('available', true).order('id', {ascending:true});
+        console.log('supabase client response', { data, error });
+        if(error) throw error;
+        if(Array.isArray(data) && data.length){ menuItems = data; renderMenu(menuItems); if(statusEl) statusEl.textContent = 'Menu loaded (client)'; return; }
+        if(Array.isArray(data) && data.length === 0){ menuItems = []; renderMenu(menuItems); if(statusEl) statusEl.textContent = 'No menu items'; return; }
+      }catch(err){
+        console.warn('Supabase client query failed:', err.message || err);
+        // continue to REST fallback
       }
-
-      // Otherwise fall through to fallback
-    }catch(err){
-      console.warn('Primary menu query failed, trying fallback:', err.message || err);
     }
 
-    // Fallback: simpler select without relationship
-    try{
-      const attempt2 = await supabase.from('menu_items').select('id,name,description,price,available').eq('available', true).order('id', {ascending:true});
-      console.log('menu attempt2', attempt2);
-      if(attempt2.error) throw attempt2.error;
-      menuItems = attempt2.data || [];
+    // Try direct REST fetch using anon key
+    const rest = await restFetchMenu();
+    console.log('rest fallback response', rest);
+    if(rest.ok && Array.isArray(rest.data)){
+      menuItems = rest.data;
       renderMenu(menuItems);
-      if(statusEl) statusEl.textContent = menuItems.length ? 'Menu loaded' : 'No menu items';
-    }catch(err2){
-      console.error('Failed to load menu:', err2);
-      menuRoot.innerHTML = `<div class="text-sm opacity-70">Failed to load menu: ${escapeHtml(err2.message || err2)}</div>`;
-      if(statusEl) statusEl.textContent = 'Menu load failed';
+      if(statusEl) statusEl.textContent = 'Menu loaded (REST)';
+      return;
     }
+
+    // If we get 401/403, it's likely RLS/policy issue — show helpful SQL
+    if(rest.status === 401 || rest.status === 403){
+      showRlsHelp(`HTTP ${rest.status} — Access denied (RLS or invalid anon key)`);
+      if(statusEl) statusEl.textContent = 'Menu load failed (permission)';
+      return;
+    }
+
+    // Other errors
+    const detail = rest.error || rest.text || `HTTP ${rest.status}`;
+    showRlsHelp(detail || 'Unknown error');
+    if(statusEl) statusEl.textContent = 'Menu load failed';
   }
 
   // Place order flow
@@ -176,15 +209,32 @@
     placeBtn.disabled = true; placeBtn.textContent = 'Placing…';
 
     try{
-      // Insert order
-      const { data: orderData, error: orderError } = await supabase.from('orders').insert([{ customer_name: name, phone, address, total, notes }]).select('id').single();
-      if(orderError) throw orderError;
-      const orderId = orderData.id;
-
-      // Insert order_items
-      const itemsToInsert = payloadItems.map(pi => ({ order_id: orderId, menu_item_id: pi.menu_item_id, quantity: pi.quantity, unit_price: pi.unit_price }));
-      const { error: itemsError } = await supabase.from('order_items').insert(itemsToInsert);
-      if(itemsError) throw itemsError;
+      // Insert order via Supabase client if available
+      if(supabase){
+        const { data: orderData, error: orderError } = await supabase.from('orders').insert([{ customer_name: name, phone, address, total, notes }]).select('id').single();
+        if(orderError) throw orderError;
+        const orderId = orderData.id;
+        const itemsToInsert = payloadItems.map(pi => ({ order_id: orderId, menu_item_id: pi.menu_item_id, quantity: pi.quantity, unit_price: pi.unit_price }));
+        const { error: itemsError } = await supabase.from('order_items').insert(itemsToInsert);
+        if(itemsError) throw itemsError;
+      }else{
+        // Fallback: direct REST insert
+        const res = await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/orders`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+          body: JSON.stringify({ customer_name: name, phone, address, total, notes })
+        });
+        if(!res.ok) throw new Error(`Order insert failed: HTTP ${res.status}`);
+        const orderData = await res.json();
+        const orderId = (orderData && orderData[0] && orderData[0].id) || (orderData && orderData.id);
+        if(!orderId) throw new Error('Failed to obtain order id');
+        const itemsRes = await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/order_items`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+          body: JSON.stringify(payloadItems.map(pi => ({ order_id: orderId, menu_item_id: pi.menu_item_id, quantity: pi.quantity, unit_price: pi.unit_price })))
+        });
+        if(!itemsRes.ok) throw new Error(`Order items insert failed: HTTP ${itemsRes.status}`);
+      }
 
       // Success
       msgEl.textContent = 'Order placed! We will contact you shortly.';
