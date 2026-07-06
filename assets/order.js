@@ -19,6 +19,7 @@
   const totalEl = document.getElementById('cart-total');
   const placeBtn = document.getElementById('place-order');
   const msgEl = document.getElementById('order-msg');
+  const statusEl = document.getElementById('supabase-status');
 
   const nameInput = document.getElementById('cust-name');
   const phoneInput = document.getElementById('cust-phone');
@@ -33,6 +34,10 @@
 
   function renderMenu(items){
     menuRoot.innerHTML = '';
+    if(!items || items.length === 0){
+      menuRoot.innerHTML = '<p class="opacity-60">No menu items available.</p>';
+      return;
+    }
     items.forEach(it => {
       const d = document.createElement('div');
       d.className = 'flex items-center justify-between p-2 border rounded';
@@ -105,17 +110,46 @@
 
   function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])) }
 
-  // Fetch menu items from Supabase
+  // Fetch menu items from Supabase with robust error handling and fallback
   async function loadMenu(){
     menuRoot.innerHTML = '<p class="opacity-70">Loading menu…</p>';
     try{
-      // select id,name,description,price,available,category relationship
-      const { data, error } = await supabase.from('menu_items').select('id,name,description,price,available,category_id(id,slug,title)').eq('available', true).order('id', {ascending:true});
-      if(error) throw error;
-      menuItems = data || [];
-      renderMenu(menuItems);
+      // First attempt: include category relationship if it exists
+      const attempt1 = await supabase.from('menu_items').select('id,name,description,price,available,category_id(id,slug,title)').eq('available', true).order('id', {ascending:true});
+      console.log('menu attempt1', attempt1);
+      if(attempt1.error) throw attempt1.error;
+      if(attempt1.data && attempt1.data.length){
+        menuItems = attempt1.data;
+        renderMenu(menuItems);
+        if(statusEl) statusEl.textContent = 'Menu loaded';
+        return;
+      }
+
+      // If empty array returned, still render (maybe no items)
+      if(Array.isArray(attempt1.data) && attempt1.data.length === 0){
+        menuItems = [];
+        renderMenu(menuItems);
+        if(statusEl) statusEl.textContent = 'No menu items';
+        return;
+      }
+
+      // Otherwise fall through to fallback
     }catch(err){
-      menuRoot.innerHTML = `<div class="text-sm opacity-70">Failed to load menu: ${escapeHtml(err.message || err)}</div>`;
+      console.warn('Primary menu query failed, trying fallback:', err.message || err);
+    }
+
+    // Fallback: simpler select without relationship
+    try{
+      const attempt2 = await supabase.from('menu_items').select('id,name,description,price,available').eq('available', true).order('id', {ascending:true});
+      console.log('menu attempt2', attempt2);
+      if(attempt2.error) throw attempt2.error;
+      menuItems = attempt2.data || [];
+      renderMenu(menuItems);
+      if(statusEl) statusEl.textContent = menuItems.length ? 'Menu loaded' : 'No menu items';
+    }catch(err2){
+      console.error('Failed to load menu:', err2);
+      menuRoot.innerHTML = `<div class="text-sm opacity-70">Failed to load menu: ${escapeHtml(err2.message || err2)}</div>`;
+      if(statusEl) statusEl.textContent = 'Menu load failed';
     }
   }
 
