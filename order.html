@@ -27,6 +27,11 @@
       if(url) window.SUPABASE_URL = url;
       if(anon) window.SUPABASE_ANON_KEY = anon;
 
+      // FOR TESTING: embed the publishable anon key you provided so the page auto-connects.
+      // REMOVE THIS BEFORE SHARING PUBLICLY if you prefer not to keep the key in source.
+      window.SUPABASE_URL = window.SUPABASE_URL || 'https://xvthbnokdyhttmmrhoos.supabase.co';
+      window.SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || 'sb_publishable_vmZGIikzAppmmd7NN-2-bA_xhX7qLxC';
+
       // Expose a small status element to the page (used later)
       window.__WUNPINI_ORDER_CONFIGURED = Boolean(window.SUPABASE_URL && window.SUPABASE_ANON_KEY);
     })();
