@@ -10,7 +10,8 @@
     return;
   }
 
-  const supabase = supabaseJs.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  // Use the UMD global `supabase` provided by the <script> in the page
+  const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   // Elements
   const menuRoot = document.getElementById('menu-list');
@@ -44,7 +45,7 @@
           <div class="font-mono text-sm text-yellow-300 mb-2">${formatPrice(it.price)}</div>
           <div class="flex items-center gap-2">
             <button class="px-2 py-1 bg-gray-700 rounded text-sm add" data-id="${it.id}">Add</button>
-            <button class="px-2 py-1 bg-transparent rounded text-xs opacity-70">Category: ${escapeHtml(it.category || it.category_id || '')}</button>
+            <button class="px-2 py-1 bg-transparent rounded text-xs opacity-70">Category: ${escapeHtml((it.category_id && (it.category_id.title || it.category_id.slug)) || '')}</button>
           </div>
         </div>
       `;
@@ -108,8 +109,8 @@
   async function loadMenu(){
     menuRoot.innerHTML = '<p class="opacity-70">Loading menu…</p>';
     try{
-      // select id,name,description,price,available,category_id
-      const { data, error } = await supabase.from('menu_items').select('id,name,description,price,available,category_id').eq('available', true).order('id', {ascending:true});
+      // select id,name,description,price,available,category relationship
+      const { data, error } = await supabase.from('menu_items').select('id,name,description,price,available,category_id(id,slug,title)').eq('available', true).order('id', {ascending:true});
       if(error) throw error;
       menuItems = data || [];
       renderMenu(menuItems);
