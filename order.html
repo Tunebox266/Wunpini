@@ -8,25 +8,38 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <style>body{background:#1B120C;color:#F2E8D8;font-family:Inter,system-ui,Arial;margin:0;padding:0} .glass{background:rgba(242,232,216,0.03);border:1px solid rgba(242,232,216,0.06);backdrop-filter:blur(6px);border-radius:10px}</style>
   <!--
-    To connect this static page to your Supabase project, set the two variables below.
-    You can either: (A) replace the empty strings with your SUPABASE_URL and ANON KEY, or
-    (B) open the browser console and run:
-      window.SUPABASE_URL = 'https://your-project.supabase.co'
-      window.SUPABASE_ANON_KEY = 'public-anon-key'
+    Configuration options (choose one):
+    1) Set keys in the browser console before loading this page:
+         window.SUPABASE_URL = 'https://your-project.supabase.co'
+         window.SUPABASE_ANON_KEY = 'public-anon-key'
 
-    Using the ANON key in a public frontend is normal for client-side apps. Do NOT use the service_role key here.
+    2) Or pass keys via URL query for quick testing (not recommended in production):
+         /order.html?supabase_url=https://your-project.supabase.co&anon_key=PUBLIC_ANON_KEY
+
+    DO NOT use the service_role key in this frontend.
   -->
   <script>
-    // Optional: set these here for quick testing (replace with your values)
-    window.SUPABASE_URL = window.SUPABASE_URL || 'https://xvthbnokdyhttmmrhoos.supabase.co';
-    window.SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || 'sb_publishable_vmZGIikzAppmmd7NN-2-bA_xhX7qLxC';
+    // If URL contains keys (for quick testing), apply them to window globals
+    (function(){
+      const params = new URLSearchParams(location.search);
+      const url = params.get('supabase_url');
+      const anon = params.get('anon_key');
+      if(url) window.SUPABASE_URL = url;
+      if(anon) window.SUPABASE_ANON_KEY = anon;
+
+      // Expose a small status element to the page (used later)
+      window.__WUNPINI_ORDER_CONFIGURED = Boolean(window.SUPABASE_URL && window.SUPABASE_ANON_KEY);
+    })();
   </script>
 </head>
 <body class="p-6">
   <main class="max-w-4xl mx-auto">
     <header class="flex items-center justify-between mb-6">
       <h1 class="text-2xl font-semibold">Place an order — Wunpini Kitchen</h1>
-      <a href="/" class="text-sm text-yellow-300">Back to site</a>
+      <div class="flex items-center gap-4">
+        <a href="/" class="text-sm text-yellow-300">Back to site</a>
+        <div id="supabase-status" class="text-xs opacity-70">Connecting…</div>
+      </div>
     </header>
 
     <section class="grid md:grid-cols-2 gap-6">
@@ -66,6 +79,21 @@
       <p class="mt-2">At Your ServiceAlways</p>
     </section>
   </main>
+
+  <script>
+    // Update status UI based on whether keys are present
+    (function(){
+      const statusEl = document.getElementById('supabase-status');
+      function update(){
+        const ok = Boolean(window.SUPABASE_URL && window.SUPABASE_ANON_KEY);
+        statusEl.textContent = ok ? 'Connected to backend' : 'Supabase not configured';
+        statusEl.style.color = ok ? '#D9A441' : '#E2E8F0';
+      }
+      update();
+      // If user sets keys in console afterwards, update the status when page regains focus
+      window.addEventListener('focus', update);
+    })();
+  </script>
 
   <script src="/assets/order.js"></script>
 </body>
