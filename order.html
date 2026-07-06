@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Order — Wunpini Kitchen</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>body{background:#1B120C;color:#F2E8D8;font-family:Inter,system-ui,Arial;margin:0;padding:0} .glass{background:rgba(242,232,216,0.03);border:1px solid rgba(242,232,216,0.06);backdrop-filter:blur(6px);border-radius:10px}</style>
+  <!--
+    To connect this static page to your Supabase project, set the two variables below.
+    You can either: (A) replace the empty strings with your SUPABASE_URL and ANON KEY, or
+    (B) open the browser console and run:
+      window.SUPABASE_URL = 'https://your-project.supabase.co'
+      window.SUPABASE_ANON_KEY = 'public-anon-key'
+
+    Using the ANON key in a public frontend is normal for client-side apps. Do NOT use the service_role key here.
+  -->
+  <script>
+    // Optional: set these here for quick testing (replace with your values)
+    window.SUPABASE_URL = window.SUPABASE_URL || '';
+    window.SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || '';
+  </script>
+</head>
+<body class="p-6">
+  <main class="max-w-4xl mx-auto">
+    <header class="flex items-center justify-between mb-6">
+      <h1 class="text-2xl font-semibold">Place an order — Wunpini Kitchen</h1>
+      <a href="/" class="text-sm text-yellow-300">Back to site</a>
+    </header>
+
+    <section class="grid md:grid-cols-2 gap-6">
+      <div class="glass p-4">
+        <h2 class="text-lg font-medium mb-3">Menu</h2>
+        <div id="menu-list" class="space-y-3 text-sm">
+          <p class="opacity-60">Loading menu…</p>
+        </div>
+      </div>
+
+      <div class="glass p-4">
+        <h2 class="text-lg font-medium mb-3">Your cart</h2>
+        <div id="cart-list" class="space-y-2 text-sm mb-4">
+          <p class="opacity-60">No items yet</p>
+        </div>
+
+        <div class="mb-4">
+          <div class="mb-2 text-xs opacity-70">Customer details</div>
+          <input id="cust-name" placeholder="Full name" class="w-full mb-2 p-2 rounded bg-transparent border border-gray-700 text-sm">
+          <input id="cust-phone" placeholder="Phone" class="w-full mb-2 p-2 rounded bg-transparent border border-gray-700 text-sm">
+          <input id="cust-address" placeholder="Address / Pickup notes" class="w-full mb-2 p-2 rounded bg-transparent border border-gray-700 text-sm">
+          <textarea id="cust-notes" rows="3" placeholder="Notes (optional)" class="w-full mb-2 p-2 rounded bg-transparent border border-gray-700 text-sm"></textarea>
+        </div>
+
+        <div class="flex items-center justify-between mb-3">
+          <div class="text-sm">Total</div>
+          <div id="cart-total" class="font-mono text-lg text-yellow-300">GH₵0.00</div>
+        </div>
+
+        <button id="place-order" class="w-full px-4 py-3 rounded bg-red-600 text-white">Place order</button>
+        <p id="order-msg" class="text-sm mt-3 opacity-80"></p>
+      </div>
+    </section>
+
+    <section class="mt-8 text-xs opacity-70">
+      <p>Delivery days: Wednesday, Saturday &amp; Sunday. Pickup available any day during business hours.</p>
+      <p class="mt-2">Notes on backend: This page uses the Supabase client (anon key) to insert orders and order items. Make sure your Supabase RLS policies allow unauthenticated inserts for the orders and order_items tables, or create an Edge function to accept orders server-side.</p>
+    </section>
+  </main>
+
+  <script src="/assets/order.js"></script>
+</body>
+</html>
