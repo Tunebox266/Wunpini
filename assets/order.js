@@ -1,8 +1,8 @@
 // Client-side ordering logic using Supabase JS
 (async function(){
   // Find configuration
-  const SUPABASE_URL = window.SUPABASE_URL || '';
-  const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || '';
+  const SUPABASE_URL = window.SUPABASE_URL || 'https://xvthbnokdyhttmmrhoos.supabase.co';
+  const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2dGhibm9rZHlodHRtbXJob29zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzNDgxMjAsImV4cCI6MjA5ODkyNDEyMH0.yc3FPaZgb3VzRT0bT-SCd18RRYC9UMX62DEvLTdjimI';
 
   if(!SUPABASE_URL || !SUPABASE_ANON_KEY){
     const menuRoot = document.getElementById('menu-list');
