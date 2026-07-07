@@ -1,19 +1,18 @@
-// Client-side ordering logic using Supabase JS
+// Client-side ordering logic using Lovable Cloud (PostgREST) APIs
 (async function(){
-  // Find configuration
-  const SUPABASE_URL = window.SUPABASE_URL || 'https://xvthbnokdyhttmmrhoos.supabase.co';
-  const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || 'sb_publishable_vmZGIikzAppmmd7NN-2-bA_xhX7qLxC';
+  const BASE = (window.VITE_SUPABASE_URL || window.LOVABLE_URL || '').replace(/\/$/, '') || 'https://mfdbmxfgqxoelzvdgvzw.supabase.co';
+  const KEY = window.VITE_SUPABASE_PUBLISHABLE_KEY || window.LOVABLE_KEY || null;
 
-  if(!SUPABASE_URL || !SUPABASE_ANON_KEY){
-    const menuRoot = document.getElementById('menu-list');
-    menuRoot.innerHTML = '<div class="opacity-70 text-sm">Supabase not configured. Set window.SUPABASE_URL and window.SUPABASE_ANON_KEY in the console, then reload.</div>';
-    return;
-  }
+  // Allow passing key via URL param anon_key for quick testing (not persisted)
+  try{
+    const params = new URLSearchParams(location.search);
+    if(!KEY && params.get('anon_key')){
+      window.VITE_SUPABASE_PUBLISHABLE_KEY = params.get('anon_key');
+    }
+  }catch(e){/* ignore */}
 
-  // Use the UMD global `supabase` provided by the <script> in the page
-  const supabase = (typeof supabase !== 'undefined' && supabase.createClient) ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+  const publishableKey = window.VITE_SUPABASE_PUBLISHABLE_KEY || KEY;
 
-  // Elements
   const menuRoot = document.getElementById('menu-list');
   const cartRoot = document.getElementById('cart-list');
   const totalEl = document.getElementById('cart-total');
@@ -26,18 +25,28 @@
   const addressInput = document.getElementById('cust-address');
   const notesInput = document.getElementById('cust-notes');
 
+  if(!publishableKey){
+    if(statusEl) statusEl.textContent = 'Backend key missing';
+    if(menuRoot) menuRoot.innerHTML = '<div class="opacity-70 text-sm">Missing publishable key. Set window.VITE_SUPABASE_PUBLISHABLE_KEY in the console or pass ?anon_key=YOUR_KEY</div>';
+    return;
+  }
+
+  const headers = {
+    apikey: publishableKey,
+    Authorization: `Bearer ${publishableKey}`,
+    'Content-Type': 'application/json'
+  };
+
   // Cart state
   let menuItems = [];
-  const cart = {}; // key = id, value = {item, qty}
+  const cart = {}; // key = id, value = { item, qty }
 
   function formatPrice(v){ return `GH₵${Number(v).toFixed(2)}` }
+  function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])) }
 
   function renderMenu(items){
     menuRoot.innerHTML = '';
-    if(!items || items.length === 0){
-      menuRoot.innerHTML = '<p class="opacity-60">No menu items available.</p>';
-      return;
-    }
+    if(!items || items.length === 0){ menuRoot.innerHTML = '<p class="opacity-60">No menu items available.</p>'; return }
     items.forEach(it => {
       const d = document.createElement('div');
       d.className = 'flex items-center justify-between p-2 border rounded';
@@ -50,18 +59,16 @@
           <div class="font-mono text-sm text-yellow-300 mb-2">${formatPrice(it.price)}</div>
           <div class="flex items-center gap-2">
             <button class="px-2 py-1 bg-gray-700 rounded text-sm add" data-id="${it.id}">Add</button>
-            <button class="px-2 py-1 bg-transparent rounded text-xs opacity-70">Category: ${escapeHtml((it.category_id && (it.category_id.title || it.category_id.slug)) || '')}</button>
+            <button class="px-2 py-1 bg-transparent rounded text-xs opacity-70">Category: ${escapeHtml(it.category || '')}</button>
           </div>
         </div>
       `;
       menuRoot.appendChild(d);
     });
-    // bind
-    menuRoot.querySelectorAll('.add').forEach(btn => btn.addEventListener('click', e => {
-      const id = Number(btn.dataset.id);
-      const item = menuItems.find(x => x.id === id);
-      if(!item) return;
-      addToCart(item, 1);
+    menuRoot.querySelectorAll('.add').forEach(btn => btn.addEventListener('click', ()=>{
+      const id = btn.dataset.id;
+      const item = menuItems.find(x => String(x.id) === String(id));
+      if(!item) return; addToCart(item, 1);
     }));
   }
 
@@ -94,99 +101,37 @@
     });
     totalEl.textContent = formatPrice(total);
 
-    // bind cart buttons
-    cartRoot.querySelectorAll('.inc').forEach(b => b.addEventListener('click', ()=> changeQty(Number(b.dataset.id), 1)));
-    cartRoot.querySelectorAll('.dec').forEach(b => b.addEventListener('click', ()=> changeQty(Number(b.dataset.id), -1)));
-    cartRoot.querySelectorAll('.del').forEach(b => b.addEventListener('click', ()=> removeFromCart(Number(b.dataset.id))));
+    cartRoot.querySelectorAll('.inc').forEach(b=>b.addEventListener('click', ()=> changeQty(Number(b.dataset.id), 1)));
+    cartRoot.querySelectorAll('.dec').forEach(b=>b.addEventListener('click', ()=> changeQty(Number(b.dataset.id), -1)));
+    cartRoot.querySelectorAll('.del').forEach(b=>b.addEventListener('click', ()=> removeFromCart(Number(b.dataset.id))));
   }
 
-  function addToCart(item, qty){
-    if(cart[item.id]) cart[item.id].qty += qty; else cart[item.id] = { item, qty };
-    if(cart[item.id].qty <= 0) delete cart[item.id];
-    renderCart();
-  }
+  function addToCart(item, qty){ if(cart[item.id]) cart[item.id].qty += qty; else cart[item.id] = { item, qty }; if(cart[item.id].qty <= 0) delete cart[item.id]; renderCart(); }
   function changeQty(id, delta){ if(cart[id]){ cart[id].qty += delta; if(cart[id].qty <= 0) delete cart[id]; renderCart(); } }
   function removeFromCart(id){ delete cart[id]; renderCart(); }
 
-  function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])) }
-
-  // Helper: direct REST fetch using anon key (fallback)
-  async function restFetchMenu(){
-    const simpleUrl = `${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/menu_items?select=id,name,description,price,available&available=eq.true`;
-    try{
-      const res = await fetch(simpleUrl, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } });
-      const text = await res.text();
-      let json = null;
-      try{ json = JSON.parse(text); }catch(e){ json = null; }
-      return { status: res.status, ok: res.ok, data: json, text };
-    }catch(e){ return { status: 0, ok:false, error: e.message || String(e) }; }
-  }
-
-  // Render an actionable RLS help message with copy button
-  function showRlsHelp(details){
-    const sql = `-- Enable row level security and allow anon select of available menu items\nALTER TABLE public.menu_items ENABLE ROW LEVEL SECURITY;\n\nCREATE POLICY public_select_menu_items\n  ON public.menu_items\n  FOR SELECT\n  USING (available IS TRUE);`;
-    menuRoot.innerHTML = `
-      <div class="text-sm opacity-80 mb-3">Unable to load menu from the backend. Reason: <strong>${escapeHtml(details)}</strong></div>
-      <div class="text-sm mb-2">If you enabled Row-Level Security in Supabase, paste and run the SQL below in the Supabase SQL editor, then reload this page.</div>
-      <pre id="wun-sql" class="p-3 text-xs bg-black/30 rounded" style="white-space:pre-wrap;max-height:240px;overflow:auto">${escapeHtml(sql)}</pre>
-      <div class="flex gap-2 mt-3">
-        <button id="copy-sql" class="px-3 py-2 bg-yellow-400 text-black rounded">Copy SQL</button>
-        <button id="open-sql" class="px-3 py-2 bg-gray-700 text-white rounded">Open Supabase SQL (new tab)</button>
-      </div>
-    `;
-    document.getElementById('copy-sql').addEventListener('click', ()=>{
-      navigator.clipboard.writeText(sql).then(()=>{
-        alert('SQL copied to clipboard — paste into Supabase SQL editor.');
-      }).catch(()=>{ alert('Copy failed — select and copy the SQL manually.'); });
-    });
-    document.getElementById('open-sql').addEventListener('click', ()=>{
-      const editorUrl = SUPABASE_URL.replace('https://','https://app.supabase.com/project/') + '/sql';
-      window.open(editorUrl, '_blank');
-    });
-  }
-
-  // Fetch menu items from Supabase with robust error handling and fallback to REST
   async function loadMenu(){
     menuRoot.innerHTML = '<p class="opacity-70">Loading menu…</p>';
-
-    // First, try the Supabase client if available
-    if(supabase){
-      try{
-        const { data, error } = await supabase.from('menu_items').select('id,name,description,price,available,category_id(id,slug,title)').eq('available', true).order('id', {ascending:true});
-        console.log('supabase client response', { data, error });
-        if(error) throw error;
-        if(Array.isArray(data) && data.length){ menuItems = data; renderMenu(menuItems); if(statusEl) statusEl.textContent = 'Menu loaded (client)'; return; }
-        if(Array.isArray(data) && data.length === 0){ menuItems = []; renderMenu(menuItems); if(statusEl) statusEl.textContent = 'No menu items'; return; }
-      }catch(err){
-        console.warn('Supabase client query failed:', err.message || err);
-        // continue to REST fallback
+    try{
+      const url = `${BASE}/rest/v1/menu_items?is_available=eq.true&order=category,sort_order`;
+      const res = await fetch(url, { headers });
+      if(!res.ok){
+        const text = await res.text();
+        throw new Error(`Menu fetch failed: HTTP ${res.status} ${text}`);
       }
-    }
-
-    // Try direct REST fetch using anon key
-    const rest = await restFetchMenu();
-    console.log('rest fallback response', rest);
-    if(rest.ok && Array.isArray(rest.data)){
-      menuItems = rest.data;
+      const data = await res.json();
+      // map to expected shape (price may be numeric string)
+      menuItems = (data || []).map(i => ({ id: i.id, category: i.category, name: i.name, description: i.description, price: Number(i.price), image_url: i.image_url }));
       renderMenu(menuItems);
-      if(statusEl) statusEl.textContent = 'Menu loaded (REST)';
-      return;
+      if(statusEl) statusEl.textContent = 'Menu loaded';
+    }catch(err){
+      menuRoot.innerHTML = `<div class="text-sm opacity-70">Failed to load menu: ${escapeHtml(err.message || err)}</div>`;
+      if(statusEl) statusEl.textContent = 'Menu load failed';
+      console.error(err);
     }
-
-    // If we get 401/403, it's likely RLS/policy issue — show helpful SQL
-    if(rest.status === 401 || rest.status === 403){
-      showRlsHelp(`HTTP ${rest.status} — Access denied (RLS or invalid anon key)`);
-      if(statusEl) statusEl.textContent = 'Menu load failed (permission)';
-      return;
-    }
-
-    // Other errors
-    const detail = rest.error || rest.text || `HTTP ${rest.status}`;
-    showRlsHelp(detail || 'Unknown error');
-    if(statusEl) statusEl.textContent = 'Menu load failed';
   }
 
-  // Place order flow
+  // Place order using Lovable Cloud API
   placeBtn.addEventListener('click', async ()=>{
     msgEl.textContent = '';
     const name = nameInput.value.trim();
@@ -198,50 +143,31 @@
     const items = Object.values(cart);
     if(!items.length){ msgEl.textContent = 'Your cart is empty.'; return; }
 
-    // compute totals
+    // compute totals and payload
     let total = 0;
-    const payloadItems = items.map(ci => {
-      const unit = Number(ci.item.price);
-      total += unit * ci.qty;
-      return { menu_item_id: ci.item.id, quantity: ci.qty, unit_price: unit };
-    });
+    const payloadItems = items.map(ci => { const unit = Number(ci.item.price); total += unit * ci.qty; return { id: ci.item.id, name: ci.item.name, price: unit, qty: ci.qty }; });
+
+    const body = {
+      customer_name: name,
+      customer_phone: phone,
+      customer_address: address,
+      delivery_day: 'Saturday', // optionally collect from UI; default to Saturday for simplicity
+      items: payloadItems,
+      total,
+      notes
+    };
 
     placeBtn.disabled = true; placeBtn.textContent = 'Placing…';
-
     try{
-      // Insert order via Supabase client if available
-      if(supabase){
-        const { data: orderData, error: orderError } = await supabase.from('orders').insert([{ customer_name: name, phone, address, total, notes }]).select('id').single();
-        if(orderError) throw orderError;
-        const orderId = orderData.id;
-        const itemsToInsert = payloadItems.map(pi => ({ order_id: orderId, menu_item_id: pi.menu_item_id, quantity: pi.quantity, unit_price: pi.unit_price }));
-        const { error: itemsError } = await supabase.from('order_items').insert(itemsToInsert);
-        if(itemsError) throw itemsError;
-      }else{
-        // Fallback: direct REST insert
-        const res = await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/orders`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
-          body: JSON.stringify({ customer_name: name, phone, address, total, notes })
-        });
-        if(!res.ok) throw new Error(`Order insert failed: HTTP ${res.status}`);
-        const orderData = await res.json();
-        const orderId = (orderData && orderData[0] && orderData[0].id) || (orderData && orderData.id);
-        if(!orderId) throw new Error('Failed to obtain order id');
-        const itemsRes = await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/order_items`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
-          body: JSON.stringify(payloadItems.map(pi => ({ order_id: orderId, menu_item_id: pi.menu_item_id, quantity: pi.quantity, unit_price: pi.unit_price })))
-        });
-        if(!itemsRes.ok) throw new Error(`Order items insert failed: HTTP ${itemsRes.status}`);
-      }
-
-      // Success
+      const res = await fetch(`${BASE}/rest/v1/orders`, { method: 'POST', headers: Object.assign({ Prefer: 'return=representation' }, headers), body: JSON.stringify(body) });
+      if(!res.ok){ const t = await res.text(); throw new Error(`Order failed: HTTP ${res.status} ${t}`); }
+      const result = await res.json();
       msgEl.textContent = 'Order placed! We will contact you shortly.';
-      // Reset
-      Object.keys(cart).forEach(k => delete cart[k]); renderCart(); nameInput.value=''; phoneInput.value=''; addressInput.value=''; notesInput.value='';
+      Object.keys(cart).forEach(k=>delete cart[k]); renderCart(); nameInput.value=''; phoneInput.value=''; addressInput.value=''; notesInput.value='';
+      console.log('order result', result);
     }catch(err){
       msgEl.textContent = 'Failed to place order: ' + (err.message || err);
+      console.error(err);
     }finally{ placeBtn.disabled = false; placeBtn.textContent = 'Place order'; }
   });
 
