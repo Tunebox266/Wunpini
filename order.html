@@ -4,36 +4,23 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Order — Wunpini Kitchen</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/dist/umd/supabase.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>body{background:#1B120C;color:#F2E8D8;font-family:Inter,system-ui,Arial;margin:0;padding:0} .glass{background:rgba(242,232,216,0.03);border:1px solid rgba(242,232,216,0.06);backdrop-filter:blur(6px);border-radius:10px}</style>
   <!--
-    Configuration options (choose one):
-    1) Set keys in the browser console before loading this page:
-         window.SUPABASE_URL = 'https://your-project.supabase.co'
-         window.SUPABASE_ANON_KEY = 'public-anon-key'
-
-    2) Or pass keys via URL query for quick testing (not recommended in production):
-         /order.html?supabase_url=https://your-project.supabase.co&anon_key=PUBLIC_ANON_KEY
-
-    DO NOT use the service_role key in this frontend.
+    Minimal Lovable Cloud (VITE) config for the frontend.
+    Prefer setting these as environment / hosting variables.
   -->
   <script>
-    // If URL contains keys (for quick testing), apply them to window globals
     (function(){
       const params = new URLSearchParams(location.search);
-      const url = params.get('supabase_url');
-      const anon = params.get('anon_key');
-      if(url) window.SUPABASE_URL = url;
-      if(anon) window.SUPABASE_ANON_KEY = anon;
+      // Quick test via URL: /order.html?anon_key=PUBLIC_KEY
+      if(params.get('anon_key')) window.VITE_SUPABASE_PUBLISHABLE_KEY = params.get('anon_key');
+      if(params.get('supabase_url')) window.VITE_SUPABASE_URL = params.get('supabase_url');
 
-      // FOR TESTING: embed the publishable anon key you provided so the page auto-connects.
-      // REMOVE THIS BEFORE SHARING PUBLICLY if you prefer not to keep the key in source.
-      window.SUPABASE_URL = window.SUPABASE_URL || 'https://xvthbnokdyhttmmrhoos.supabase.co';
-      window.SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2dGhibm9rZHlodHRtbXJob29zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzNDgxMjAsImV4cCI6MjA5ODkyNDEyMH0.yc3FPaZgb3VzRT0bT-SCd18RRYC9UMX62DEvLTdjimI';
-
-      // Expose a small status element to the page (used later)
-      window.__WUNPINI_ORDER_CONFIGURED = Boolean(window.SUPABASE_URL && window.SUPABASE_ANON_KEY);
+      // Defaults (Lovable Cloud values)
+      window.VITE_SUPABASE_URL = window.VITE_SUPABASE_URL || 'https://mfdbmxfgqxoelzvdgvzw.supabase.co';
+      // Leave the publishable key empty here — set it via hosting env or console for testing
+      window.VITE_SUPABASE_PUBLISHABLE_KEY = window.VITE_SUPABASE_PUBLISHABLE_KEY || '';
     })();
   </script>
 </head>
@@ -81,24 +68,9 @@
 
     <section class="mt-8 text-xs opacity-70">
       <p>Delivery days: Wednesday, Saturday &amp; Sunday. Pickup available any day during business hours.</p>
-      <p class="mt-2">At Your Service Always</p>
+      <p class="mt-2">At Your ServiceAlways</p>
     </section>
   </main>
-
-  <script>
-    // Update status UI based on whether keys are present
-    (function(){
-      const statusEl = document.getElementById('supabase-status');
-      function update(){
-        const ok = Boolean(window.SUPABASE_URL && window.SUPABASE_ANON_KEY);
-        statusEl.textContent = ok ? 'Connected to backend' : 'Supabase not configured';
-        statusEl.style.color = ok ? '#D9A441' : '#E2E8F0';
-      }
-      update();
-      // If user sets keys in console afterwards, update the status when page regains focus
-      window.addEventListener('focus', update);
-    })();
-  </script>
 
   <script src="/assets/order.js"></script>
 </body>
